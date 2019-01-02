@@ -1,0 +1,79 @@
+setwd("C:\\Users\\uidj1620\\Desktop\\Desktop\\Folder\\B RAI\\Neural_Network")
+getwd()
+data <- read.csv("binary.csv", header = TRUE)
+str(data)
+## admit - whether the student was admitted or not to school
+## Rank - rank of schools - 1 being the best and 4 being the worst
+
+## For using neural network the values the variables needs 
+##to be between 1 and 0 so normalization has to be done.
+# Min-Max Normalization
+hist(data$gre)
+data$gre <- (data$gre - min(data$gre))/(max(data$gre) - min(data$gre))
+hist(data$gre)
+data$gpa <- (data$gpa - min(data$gpa))/(max(data$gpa) - min(data$gpa))
+data$rank <- (data$rank - min(data$rank))/(max(data$rank)-min(data$rank))
+
+# Data Partition
+set.seed(222)
+## ind refers to independent samples
+## 2 refers to number of sampes to be created 
+ind <- sample(2, nrow(data), replace = TRUE, prob = c(0.7, 0.3))
+## 1 refers to sample 1
+training <- data[ind==1,]
+## 2 refers to sample 2
+testing <- data[ind==2,]
+
+# Neural Networks
+##install.packages("neuralnet")
+library(neuralnet)
+set.seed(333)
+n <- neuralnet(admit~gre+gpa+rank,
+               data = training,
+               hidden = 5,
+               err.fct = "ce",
+               linear.output = FALSE,
+               lifesign = "full",
+               rep = 5,
+               stepmax = 10000
+               )
+## rep refers to the number of repetitions for training the neural network
+## neural network uses multiple alos , default is "rprop"
+## ce - refers to cross entropy error
+## hidden - refers to number of hidden layers in neural network
+## > neurons improves accuracy of the model
+## instead of taken one hidden layer, 2 can be taken
+##  hidden = c(2,3)
+## stepmax refers to maximum number of steps for training the neural network, max value is 100000
+## most of the times the algorithm converges much before that
+plot(n)
+
+# Prediction
+## -1 is to exclude the first column
+output <- compute(n, training[,-1])
+head(output$net.result)
+head(training[1,])
+## 1 refers to the first row
+## net.result gives the probability 
+
+# Node Output Calculations with Sigmoid Activation Function
+in4 <- 0.0455 + (0.82344*0.7586206897) + (1.35186*0.8103448276) + (-0.87435*0.6666666667)
+out4 <- 1/(1+exp(-in4)) ## sigmoid function
+in5 <- -7.06125 +(8.5741*out4)
+out5 <- 1/(1+exp(-in5))
+
+# Confusion Matrix & Misclassification Error - training data
+output <- compute(n, training[,-1])
+p1 <- output$net.result
+pred1 <- ifelse(p1>0.5, 1, 0)  ## will have to classify the output as 0 or 1 
+tab1 <- table(pred1, training$admit)
+tab1
+1-sum(diag(tab1))/sum(tab1)
+
+# Confusion Matrix & Misclassification Error - testing data
+output <- compute(n, testing[,-1])
+p2 <- output$net.result
+pred2 <- ifelse(p2>0.5, 1, 0)  ## will have to classify the output as 0 or 1 
+tab2 <- table(pred2, testing$admit)
+tab2
+1-sum(diag(tab2))/sum(tab2)

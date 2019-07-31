@@ -1,0 +1,213 @@
+#Some libraries
+library(car)
+library(caret)
+library(class)
+library(devtools)
+library(e1071)
+library(ggplot2)
+library(Hmisc)
+library(MASS)
+library(plyr)
+library(pROC)
+library(psych)
+library(scatterplot3d)
+library(SDMTools)
+library(dplyr)
+library(ElemStatLearn)
+library(rpart)
+library(rpart.plot)
+
+setwd("C:/Users/uidj1620/Desktop/iMP/ML_practice")
+
+Loan<-read.csv(file.choose(), header=T)
+na.omit(Loan)
+
+summary(Loan)
+str(Loan)
+#EMI RATIO IS THE DEPANDENT VARIABLE' FINDING EMI RATIO
+# this dataset has already been preprocessed
+# now data manupulation is being done - feature engineering, feature selection, etc
+levels(Loan$Purpose)
+levels(Loan$Job)
+#Define some dummies for the categorical variables
+Loan$Default<-ifelse(Loan$Status=="Default",1,0)
+Loan$Female<-ifelse(Loan$Gender=="Female",1,0)
+Loan$Management<-ifelse(Loan$Job=="Management",1,0)
+Loan$Skilled<-ifelse(Loan$Job=="skilled",1,0)
+Loan$Unskilled<-ifelse(Loan$Job=="unskilled",1,0)
+
+
+Loan$CH.Poor<-ifelse(Loan$Credit.History=="Poor",1,0)
+Loan$CH.critical<-ifelse(Loan$Credit.History=="critical",1,0)
+Loan$CH.good<-ifelse(Loan$Credit.History=="good",1,0)
+Loan$CH.verygood<-ifelse(Loan$Credit.History=="very good",1,0)
+
+Loan$Purpose.car<-ifelse(Loan$Purpose=="car",1,0)
+Loan$Purpose.cd<-ifelse(Loan$Purpose=="consumer.durable",1,0)
+Loan$Purpose.education<-ifelse(Loan$Purpose=="education",1,0)
+Loan$Purpose.personal<-ifelse(Loan$Purpose=="personal",1,0)
+head(Loan)
+# write the data in csv after transformation
+write.csv(Loan, file = "MyData.csv")
+#Partitioning Data Sets
+#Partition train and val
+#We will use this throughout so that samples are comparable
+set.seed(1234)
+pd<-sample(2,nrow(Loan),replace=TRUE, prob=c(0.7,0.3))
+
+train<-Loan[pd==1,]
+val<-Loan[pd==2,]
+
+str(Loan)
+library(ISLR)
+library(leaps)
+
+# leaps package helps to get the best possible subset
+#Use reg subset to evaluate best subset (default is 8)
+# here we are trying to find the best subset using reg subset
+# out of the 24 variables which varibles should be considered for building the model
+# which independent variable has beter impact on the dependent variable ie emi ratio
+Linear<-EMI.Ratio~Loan.Offered+Work.Exp+Credit.Score+Own.house+Dependents +Female+Management+Skilled+CH.Poor+CH.good+CH.critical+Purpose.car+Purpose.education+Purpose.personal
+# created a linear function and used that function on the loan data 
+# to find which independent variables go well with the dependent variables
+regfitfull<-regsubsets(Linear, data=Loan)
+reg.summary<-summary(regfitfull)
+reg.summary
+#reg subset for all
+regfit.full<-regsubsets(Linear, data=Loan,nvmax=24)
+# we get a set of 14 variables
+# in regression which are the parameters that we check to determine how good the model is 
+# r sq, adj r sq, residuals, standard error, p value , f statistic, chi sq test, bic, aic
+# bic helps to get a trade off between simplicity and accuracy ie lesser error better fit, 
+# bic penalizes more for variables so more preferred than aic
+
+reg.summary.full<-summary(regfit.full)
+reg.summary.full
+names(reg.summary.full)
+# rsq and adj rsq values for the 14 variables
+reg.summary.full$rsq
+reg.summary.full$adjr2
+###So how many?
+
+
+## graph for rss(residual sum of sq error(SSE or RSS)) and no of variables
+# RSS =  is the sum of the squares of residuals (deviations predicted from actual empirical values of data)
+par(mfrow =c(2,2))
+plot(reg.summary.full$rss ,xlab=" Number of Variables ",ylab=" RSS",
+     type="l")
+
+
+#Use Adjusted R Square
+plot(reg.summary.full$adjr2 ,xlab =" Number of Variables ",
+     ylab=" Adjusted RSq",type="l")
+
+#below code is to find the co efficients which will give maximum adj R sq value
+Adrsq.opt<-which.max(reg.summary.full$adjr2)
+Adrsq.opt
+coef(regfit.full,Adrsq.opt)
+
+
+#Use Cp: small value is better as it indicates that model has small variance
+plot(reg.summary.full$cp,xlab="number of variables", ylab="Cp Statistic")
+Cp.opt<-which.min(reg.summary.full$cp)
+Cp.opt
+coef(regfit.full,Cp.opt)
+
+#Use BIC : model with lowest BIC is preferred.
+plot(reg.summary.full$bic,xlab="number of variables", ylab="BIC")
+BIC.opt<-which.min(reg.summary.full$bic)
+BIC.opt
+coef(regfit.full,BIC.opt)
+
+
+###https://gerardnico.com/data_mining/stepwise_regression (for Forward & Backward Selection)
+##Forward(with no predictors) and Backward Selection(with all the predictors)
+#Forward Selection : adds variable to model one at a time
+regfit.fwd<-regsubsets(Linear, data=Loan, nvmax=11, method="forward")
+
+coef(regfit.fwd,11)
+#Backward Selection : start with all predictors 
+regfit.bwd<-regsubsets(Linear, data=Loan, nvmax=11, method="backward")
+
+coef(regfit.bwd,11)
+
+####Best Model
+
+Loan.work2<-Loan[,c(6,2,4,5,9,11,13:15,18:19,21:23)]
+colnames(Loan)
+set.seed(123)
+pd<-sample(2,nrow(Loan.work2),replace=TRUE, prob=c(0.7,0.3))
+train.G<-Loan.work2[pd==1,]
+test.G<-Loan.work2[pd==2,]
+
+
+
+
+regfit.best<-regsubsets(EMI.Ratio~., data=train.G, nvmax=14)
+
+####RIDGE and LASSO
+#install.packages("glmnet")
+library(glmnet)
+x.G=model.matrix(EMI.Ratio~., data=Loan.work2)[,-1]
+y.G=na.omit(Loan.work2$EMI.Ratio)
+
+#We choose a grid of lamda values, and compute
+#the cross-validation error for each value of lamda
+#We then select the tuning parameter value for which the cross-validation error
+#is smallest
+#we have chosen to implement
+#the function over a grid of values ranging from lambda = 10^10 to lambda = 10-2, essentially
+#covering the full range of scenarios from the null model containing
+#only the intercept, to the least squares fit.
+
+grid=10^(seq(10,-2,length=100))
+grid
+
+###Ridge: alpha=0
+ridge.model.G=glmnet(x.G,y.G,alpha=0,lambda=grid)
+predict(ridge.model.G,s=50,type="coefficients")[1:14.]
+###Test Train
+set.seed(1)
+train.Ridge.G<-sample(1:nrow(x.G),nrow(x.G)/2)
+test.Ridge.G<-(-train.Ridge.G)
+y.test.GR<-y.G[test.Ridge.G]
+#cross val
+set.seed(1)
+cv.out.ridge.G=cv.glmnet(x.G[train.Ridge.G,],y.G[train.Ridge.G],alpha=0)
+#plot(cv.out.ridge.G)
+#names(cv.out.ridge.G)
+bestlambda.ridge.G=cv.out.ridge.G$lambda.min
+bestlambda.ridge.G
+pred.ridge.G<-predict(ridge.model.G,  s=bestlambda.ridge.G, newx=x.G[test.Ridge.G,])
+MSERidge.G<-mean((pred.ridge.G-y.test.GR)^2)
+MSERidge.G
+pred.ridge.G<-predict(ridge.model.G, type="coefficients", s=bestlambda.ridge.G, newx=x.G[test.Ridge.G,])
+pred.ridge.G
+
+
+###Lasso: alpha=1
+lasso.model.G=glmnet(x.G,y.G,alpha=1,lambda=grid)
+predict(lasso.model.G,s=50,type="coefficients")[1:14.]
+###Test Train
+set.seed(1)
+train.Lasso.G<-sample(1:nrow(x.G),nrow(x.G)/2)
+test.Lasso.G<-(-train.Lasso.G)
+y.test.GL<-y.G[test.Lasso.G]
+#cross val
+set.seed(1)
+cv.out.lasso.G=cv.glmnet(x.G[train.Lasso.G,],y.G[train.Lasso.G],alpha=1)
+#plot(cv.out.lasso)
+#names(cv.out.lasso)
+bestlambda.lasso.G=cv.out.lasso.G$lambda.min
+bestlambda.lasso.G
+pred.lasso.G<-predict(lasso.model.G,  s=bestlambda.lasso.G, newx=x.G[test.Lasso.G,])
+MSELasso.G<-mean((pred.lasso.G-y.test.GL)^2)
+MSELasso.G
+
+lasso.coeff.G<-predict(lasso.model.G, type="coefficients", s=bestlambda.lasso.G, newx=x.G[test.Lasso.G,])
+lasso.coeff.G
+
+
+
+########What did we achieve
+####MSE with Regression

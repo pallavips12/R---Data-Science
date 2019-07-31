@@ -1,0 +1,41 @@
+# MISSING DATA IMPUTATION 
+
+# 1. REGRESSION SUBSTITUTION METHOD (Regression based method)
+
+fitness<-read.table("fitness2.txt",header=TRUE)
+x2onx1<-lm(RunTime~Oxygen,data=fitness) 
+new<-data.frame(Oxygen=c(59.571,50.541,47.273)) # taking the required values of the independent variable in a dataframe
+predict(x2onx1,new)
+
+x3onx1<-lm(RunPulse~Oxygen,data=fitness)
+new3<-data.frame(Oxygen=c(49.874,49.091,46.672,46.774,45.118))
+predict(x3onx1,new3)
+
+x3onx1x2<-lm(RunPulse~RunTime+Oxygen,data=fitness)
+new2<-data.frame(Oxygen=c(49.874,49.091,46.672,46.774,45.118),RunTime=c(9.22,10.85,10.00,10.25,11.08))
+predict(x3onx1x2,new2)
+
+
+# 2. Multiple imputations (MICE package is used, MI is mostly used in industry) By MICE
+require(mice)
+require(lattice)
+imp<-mice(fitness,m=5,maxit=2)
+mat<-complete(imp)
+mat
+bwplot(imp)
+
+
+#3.  K nearest neighbour based
+
+install.packages("yaImpute")
+library(yaImpute)
+set.seed(1)
+refs=sample(rownames(fitness),
+            + c(1,2,3,6,7,9,10,12,13,15,16,17,20:24))
+x <- as.matrix(fitness[, 1])
+y <- fitness[, 2:3]
+raw <- yai(x = x, y = y, data=fitness,k=5,method = "euclidean")
+tail(impute(raw))
+##----------
+  
+  

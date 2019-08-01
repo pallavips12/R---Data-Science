@@ -1,0 +1,30 @@
+setwd("C:/Users/uidj1620/Desktop/iMP/ML_practice")
+getwd()
+library(MASS)
+set.seed(1)
+train=sample(1: nrow(Boston),nrow(Boston)/2)
+install.packages("gbm")
+library(gbm)
+boston.test=Boston[-train,"medv"]
+# distribution="gaussian" for regression problems and bernoulli for classification problems
+# interaction.depth =4 at 4 levels of tree
+boost.boston =gbm(medv~.,data=Boston[train,],distribution="gaussian"
+                  ,n.trees =5000 , interaction.depth =4)
+summary(boost.boston)
+
+#the wealth level of the community (lstat) and the house size (rm)
+#are by far the two most important variables.
+
+par(mfrow =c(1,2))
+plot(boost.boston ,i="rm")
+plot(boost.boston ,i="lstat")
+
+#partial dependence plots 
+#These plots illustrate the marginal effect of the selected variables on the response after
+#integrating out the other variables. In this case, as we might expect, median
+#house prices are increasing with rm and decreasing with lstat.
+
+yhat.boost=predict (boost.boston,newdata =Boston[-train,],n.trees =5000)
+meaboost.boston =gbm(medv~.,data=Boston [train ,],distribution="gaussian",n.trees =5000,interaction.depth=4,shrinkage=0.2,verbose =F)
+yhat.boost=predict(meaboost.boston,newdata=Boston[-train,],n.trees =5000)
+mean((yhat.boost-boston.test)^2)
